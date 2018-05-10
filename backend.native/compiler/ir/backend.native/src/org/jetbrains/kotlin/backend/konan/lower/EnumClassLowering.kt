@@ -36,10 +36,10 @@ import org.jetbrains.kotlin.ir.IrStatement
 import org.jetbrains.kotlin.ir.builders.*
 import org.jetbrains.kotlin.ir.declarations.*
 import org.jetbrains.kotlin.ir.declarations.impl.*
+import org.jetbrains.kotlin.ir.descriptors.IrTemporaryVariableDescriptorImpl
 import org.jetbrains.kotlin.ir.expressions.*
 import org.jetbrains.kotlin.ir.expressions.impl.*
 import org.jetbrains.kotlin.ir.symbols.IrConstructorSymbol
-import org.jetbrains.kotlin.ir.symbols.impl.IrAnonymousInitializerSymbolImpl
 import org.jetbrains.kotlin.ir.util.*
 import org.jetbrains.kotlin.ir.visitors.IrElementTransformerVoid
 import org.jetbrains.kotlin.ir.visitors.transformChildrenVoid
@@ -158,9 +158,105 @@ internal class EnumUsageLowering(val context: Context)
     }
 }
 
+// Lower 'switch-like' when constructs.
+// `switch-like` means that subject variable is an entry of enum
+// and all branches are simple comparisons with enum entries.
+internal class EnumWhenLowering(
+        private val context: Context,
+        private val enumEntryOrdinals: Map<ClassDescriptor, Int>)
+    : IrElementTransformerVoid(), FileLoweringPass {
+
+    override fun lower(irFile: IrFile) {
+        visitFile(irFile)
+    }
+
+    override fun visitBlock(expression: IrBlock): IrExpression {
+        if (!shouldLower(expression)) {
+            return super.visitBlock(expression)
+        }
+        val tempVariable = expression.statements[0] as IrVariable
+        val enumClass = tempVariable.type.constructor.declarationDescriptor as ClassDescriptor
+
+        val ordinalPropertyGetter = context.ir.getPropertyGetterByName(enumClass, Name.identifier("ordinal"))
+        val getOrdinal = IrCallImpl(tempVariable.startOffset, tempVariable.endOffset, ordinalPropertyGetter).apply {
+            dispatchReceiver = IrGetValueImpl(tempVariable.startOffset, tempVariable.endOffset, tempVariable.symbol)
+        }
+
+        // Create temporary variable for subject's ordinal.
+        val ordinalDescriptor = IrTemporaryVariableDescriptorImpl(tempVariable.descriptor,
+                Name.identifier(tempVariable.name.asString() + "_ordinal"), context.builtIns.intType)
+        val ordinalVariable = IrVariableImpl(tempVariable.startOffset, tempVariable.endOffset,
+                IrDeclarationOrigin.IR_TEMPORARY_VARIABLE, ordinalDescriptor, getOrdinal)
+
+        expression.statements.add(1, ordinalVariable)
+
+        val areEqualByValue = context.ir.symbols.areEqualByValue.first {
+            it.owner.valueParameters[0].type == context.builtIns.intType
+        }
+
+        val whenExpr = expression.statements[2] as IrWhen
+        whenExpr.branches.forEach {
+            if (it != whenExpr.branches.last()) {
+                val eqEqCall = it.condition as IrCall
+                val entry = eqEqCall.getArguments()[1].second as IrGetEnumValue
+                val entryOrdinal = enumEntryOrdinals[entry.descriptor]!!
+                // replace condition with trivial comparison of ordinals
+                it.condition = IrCallImpl(eqEqCall.startOffset, eqEqCall.endOffset, areEqualByValue).apply {
+                    putValueArgument(0, IrConstImpl.int(entry.startOffset, entry.endOffset, context.builtIns.intType, entryOrdinal))
+                    putValueArgument(1, IrGetValueImpl(ordinalVariable.startOffset, ordinalVariable.endOffset, ordinalVariable.symbol))
+                }
+            }
+        }
+        expression.transformChildrenVoid(this)
+        return expression
+    }
+
+    // Checks that all elements of irBlock satisfy all constrains of this lowering.
+    // 1. Block's origin is WHEN
+    // 2. Subject of `when` is variable of enum type
+    // 3. All branches (except last one) are simple comparisons with enum's entries
+    private fun shouldLower(irBlock: IrBlock): Boolean {
+        if (irBlock.origin != IrStatementOrigin.WHEN) {
+            return false
+        }
+        // when-block should have two children: temporary variable and when itself.
+        assert(irBlock.statements.size == 2)
+
+        val tempVariable = irBlock.statements[0] as IrVariable
+
+        val enumClass = tempVariable.type.constructor.declarationDescriptor as? ClassDescriptor ?: return false
+        if (enumClass.kind != ClassKind.ENUM_CLASS) {
+            return false
+        }
+
+        val whenExpr = irBlock.statements[1] as IrWhen
+        whenExpr.branches.forEach {
+            if (it != whenExpr.branches.last()) {
+                val areEqualCall = it.condition as? IrCall ?: return false
+                if (areEqualCall.symbol != context.irBuiltIns.eqeqSymbol) {
+                    return false
+                } else if (areEqualCall.getArguments()[1].second !is IrGetEnumValue) {
+                    return false
+                }
+            } else {
+                if (it.condition !is IrConst<*>) {
+                    return false
+                }
+            }
+        }
+        return true
+    }
+}
+
+
 internal class EnumClassLowering(val context: Context) : ClassLoweringPass {
+    private val enumEntryOrdinals = mutableMapOf<ClassDescriptor, Int>()
+
     fun run(irFile: IrFile) {
         runOnFilePostfix(irFile)
+        // EnumWhenLowering should be performed before EnumUsageLowering because
+        // the latter is performing lowering of IrGetEnumValue
+        EnumWhenLowering(context, enumEntryOrdinals).lower(irFile)
         EnumUsageLowering(context).lower(irFile)
     }
 
@@ -177,7 +273,6 @@ internal class EnumClassLowering(val context: Context) : ClassLoweringPass {
 
     private inner class EnumClassTransformer(val irClass: IrClass) {
         private val loweredEnum = context.specialDeclarationsFactory.getLoweredEnum(irClass.descriptor)
-        private val enumEntryOrdinals = mutableMapOf<ClassDescriptor, Int>()
         private val loweredEnumConstructors = mutableMapOf<ClassConstructorDescriptor, IrConstructor>()
         private val descriptorToIrConstructorWithDefaultArguments = mutableMapOf<ClassConstructorDescriptor, IrConstructor>()
         private val defaultEnumEntryConstructors = mutableMapOf<ClassConstructorDescriptor, IrConstructor>()

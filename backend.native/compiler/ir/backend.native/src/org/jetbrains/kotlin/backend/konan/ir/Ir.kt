@@ -89,6 +89,13 @@ internal class KonanIr(context: Context, irModule: IrModuleFragment): Ir<Context
         return originalModuleIndex.classes[descriptor]
                 ?: symbols.symbolTable.referenceClass(descriptor).owner
     }
+
+    fun getPropertyGetterByName(descriptor: ClassDescriptor, name: Name): IrSimpleFunctionSymbol {
+        val property = descriptor.unsubstitutedMemberScope
+                .getContributedVariables(name, NoLookupLocation.FROM_BACKEND)
+                .single()
+        return context.ir.symbols.symbolTable.referenceSimpleFunction(property.getter!!)
+    }
 }
 
 internal class KonanSymbols(context: Context, val symbolTable: SymbolTable): Symbols<Context>(context, symbolTable) {
