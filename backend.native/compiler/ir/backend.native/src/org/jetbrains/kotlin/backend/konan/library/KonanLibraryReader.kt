@@ -23,6 +23,9 @@ import org.jetbrains.kotlin.konan.properties.Properties
 interface KonanLibraryReader {
     val libraryName: String
     val uniqueName: String
+    val libraryVersion: String?
+    val compilerVersion: String
+    val currentAbiVersion: Int
     val bitcodePaths: List<String>
     val includedPaths: List<String>
     val linkerOpts: List<String>

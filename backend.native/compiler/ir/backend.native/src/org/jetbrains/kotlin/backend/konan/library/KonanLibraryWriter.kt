@@ -27,6 +27,9 @@ interface KonanLibraryWriter {
     fun addManifestAddend(path: String)
     fun addDataFlowGraph(dataFlowGraph: ByteArray)
     val mainBitcodeFileName: String
+    val currentAbiVersion: Int
+    val libraryVersion: String?
+    val compilerVersion: String
     fun commit()
 }
 

@@ -22,21 +22,27 @@ import llvm.LLVMWriteBitcodeToFile
 import org.jetbrains.kotlin.backend.konan.library.KonanLibrary
 import org.jetbrains.kotlin.backend.konan.library.KonanLibraryWriter
 import org.jetbrains.kotlin.backend.konan.library.LinkData
+import org.jetbrains.kotlin.konan.KonanVersion
 import org.jetbrains.kotlin.konan.file.*
 import org.jetbrains.kotlin.konan.properties.*
 import org.jetbrains.kotlin.konan.target.KonanTarget
 
 abstract class FileBasedLibraryWriter (
-    val file: File, val currentAbiVersion: Int): KonanLibraryWriter {
+    val file: File): KonanLibraryWriter {
 }
 
-class LibraryWriterImpl(override val libDir: File, moduleName: String, currentAbiVersion: Int, 
-    override val target: KonanTarget?, val nopack: Boolean = false): 
-        FileBasedLibraryWriter(libDir, currentAbiVersion), KonanLibrary {
+class LibraryWriterImpl(override val libDir: File, moduleName: String,
+    override val currentAbiVersion: Int,
+    override val compilerVersion: String,
+    override val libraryVersion: String? = null,
+    override val target: KonanTarget?,
+    val nopack: Boolean = false):
+        FileBasedLibraryWriter(libDir), KonanLibrary {
 
-    public constructor(path: String, moduleName: String, currentAbiVersion: Int, 
+    constructor(path: String, moduleName: String, currentAbiVersion: Int,
+        compilerVersion: String, libraryVersion: String?,
         target:KonanTarget?, nopack: Boolean): 
-        this(File(path), moduleName, currentAbiVersion, target, nopack)
+        this(File(path), moduleName, currentAbiVersion, compilerVersion, libraryVersion, target, nopack)
 
     override val libraryName = libDir.path
     val klibFile 
@@ -62,6 +68,8 @@ class LibraryWriterImpl(override val libDir: File, moduleName: String, currentAb
         // TODO: <name>:<hash> will go somewhere around here.
         manifestProperties.setProperty("unique_name", "$moduleName")
         manifestProperties.setProperty("abi_version", "$currentAbiVersion")
+        manifestProperties.setProperty("library_version", "$libraryVersion")
+        manifestProperties.setProperty("compiler_version", "$compilerVersion")
     }
 
     var llvmModule: LLVMModuleRef? = null
@@ -119,7 +127,9 @@ internal fun buildLibrary(
     included: List<String>,
     linkDependencies: List<KonanLibraryReader>,
     linkData: LinkData, 
-    abiVersion: Int, 
+    abiVersion: Int,
+    compilerVersion: String,
+    libraryVersion: String?,
     target: KonanTarget, 
     output: String, 
     moduleName: String, 
@@ -128,7 +138,7 @@ internal fun buildLibrary(
     manifest: String?,
     dataFlowGraph: ByteArray?): KonanLibraryWriter {
 
-    val library = LibraryWriterImpl(output, moduleName, abiVersion, target, nopack)
+    val library = LibraryWriterImpl(output, moduleName, abiVersion, compilerVersion, libraryVersion, target, nopack)
 
     library.addKotlinBitcode(llvmModule)
     library.addLinkData(linkData)

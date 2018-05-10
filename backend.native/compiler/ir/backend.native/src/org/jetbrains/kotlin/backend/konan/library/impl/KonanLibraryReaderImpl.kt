@@ -27,7 +27,7 @@ import org.jetbrains.kotlin.konan.target.KonanTarget
 import org.jetbrains.kotlin.konan.util.defaultTargetSubstitutions
 import org.jetbrains.kotlin.konan.util.substitute
 
-class LibraryReaderImpl(var libraryFile: File, val currentAbiVersion: Int,
+class LibraryReaderImpl(var libraryFile: File, override val currentAbiVersion: Int,
     val target: KonanTarget? = null, override val isDefaultLibrary: Boolean = false)
     : KonanLibraryReader {
 
@@ -62,6 +62,12 @@ class LibraryReaderImpl(var libraryFile: File, val currentAbiVersion: Int,
 
     override val uniqueName
         get() = manifestProperties.propertyString("unique_name")!!
+
+    override val libraryVersion: String?
+        get() = manifestProperties.propertyString("library_version")
+
+    override val compilerVersion
+        get() = manifestProperties.propertyString("compiler_version")!!
 
     override val bitcodePaths: List<String>
         get() = (realFiles.kotlinDir.listFilesOrEmpty + realFiles.nativeDir.listFilesOrEmpty)
