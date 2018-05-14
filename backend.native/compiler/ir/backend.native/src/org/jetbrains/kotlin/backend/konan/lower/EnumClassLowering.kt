@@ -158,9 +158,9 @@ internal class EnumUsageLowering(val context: Context)
     }
 }
 
-// Lower 'switch-like' when constructs.
-// `switch-like` means that subject variable is an entry of enum
-// and all branches are simple comparisons with enum entries.
+// Look for when-constructs where subject is enum entry.
+// Replace branches that are comparisons with compile-time known enum entries
+// with comparisons of ordinals.
 internal class EnumWhenLowering(
         private val context: Context,
         private val enumEntryOrdinals: Map<ClassDescriptor, Int>)
@@ -174,31 +174,21 @@ internal class EnumWhenLowering(
         if (!shouldLower(expression)) {
             return super.visitBlock(expression)
         }
-        val tempVariable = expression.statements[0] as IrVariable
-        val enumClass = tempVariable.type.constructor.declarationDescriptor as ClassDescriptor
-
-        val ordinalPropertyGetter = context.ir.getPropertyGetterByName(enumClass, Name.identifier("ordinal"))
-        val getOrdinal = IrCallImpl(tempVariable.startOffset, tempVariable.endOffset, ordinalPropertyGetter).apply {
-            dispatchReceiver = IrGetValueImpl(tempVariable.startOffset, tempVariable.endOffset, tempVariable.symbol)
+        // Will be initialized only when we found a branch that compares
+        // subject with compile-time known enum entry
+        val ordinalVariable: IrVariable by lazy {
+            val variable = createOrdinalVariable(expression)
+            expression.statements.add(1, variable)
+            variable
         }
-
-        // Create temporary variable for subject's ordinal.
-        val ordinalDescriptor = IrTemporaryVariableDescriptorImpl(tempVariable.descriptor,
-                Name.identifier(tempVariable.name.asString() + "_ordinal"), context.builtIns.intType)
-        val ordinalVariable = IrVariableImpl(tempVariable.startOffset, tempVariable.endOffset,
-                IrDeclarationOrigin.IR_TEMPORARY_VARIABLE, ordinalDescriptor, getOrdinal)
-
-        expression.statements.add(1, ordinalVariable)
-
         val areEqualByValue = context.ir.symbols.areEqualByValue.first {
             it.owner.valueParameters[0].type == context.builtIns.intType
         }
-
-        val whenExpr = expression.statements[2] as IrWhen
-        whenExpr.branches.forEach {
-            if (it != whenExpr.branches.last()) {
-                val eqEqCall = it.condition as IrCall
-                val entry = eqEqCall.getArguments()[1].second as IrGetEnumValue
+        val whenExpr = expression.statements[1] as IrWhen
+        whenExpr.branches.filter { it.condition is IrCall }.forEach {
+            val eqEqCall = it.condition as IrCall
+            val entry = eqEqCall.getArguments()[1].second as? IrGetEnumValue
+            if (entry != null) {
                 val entryOrdinal = enumEntryOrdinals[entry.descriptor]!!
                 // replace condition with trivial comparison of ordinals
                 it.condition = IrCallImpl(eqEqCall.startOffset, eqEqCall.endOffset, areEqualByValue).apply {
@@ -207,44 +197,37 @@ internal class EnumWhenLowering(
                 }
             }
         }
+        // Process nested when constructs.
         expression.transformChildrenVoid(this)
         return expression
     }
 
-    // Checks that all elements of irBlock satisfy all constrains of this lowering.
+    // Checks that irBlock satisfies all constrains of this lowering.
     // 1. Block's origin is WHEN
     // 2. Subject of `when` is variable of enum type
-    // 3. All branches (except last one) are simple comparisons with enum's entries
     private fun shouldLower(irBlock: IrBlock): Boolean {
         if (irBlock.origin != IrStatementOrigin.WHEN) {
             return false
         }
         // when-block should have two children: temporary variable and when itself.
         assert(irBlock.statements.size == 2)
-
         val tempVariable = irBlock.statements[0] as IrVariable
-
         val enumClass = tempVariable.type.constructor.declarationDescriptor as? ClassDescriptor ?: return false
-        if (enumClass.kind != ClassKind.ENUM_CLASS) {
-            return false
-        }
+        return enumClass.kind == ClassKind.ENUM_CLASS
+    }
 
-        val whenExpr = irBlock.statements[1] as IrWhen
-        whenExpr.branches.forEach {
-            if (it != whenExpr.branches.last()) {
-                val areEqualCall = it.condition as? IrCall ?: return false
-                if (areEqualCall.symbol != context.irBuiltIns.eqeqSymbol) {
-                    return false
-                } else if (areEqualCall.getArguments()[1].second !is IrGetEnumValue) {
-                    return false
-                }
-            } else {
-                if (it.condition !is IrConst<*>) {
-                    return false
-                }
-            }
+    private fun createOrdinalVariable(irBlock: IrBlock): IrVariable {
+        val tempVariable = irBlock.statements[0] as IrVariable
+        val enumClass = tempVariable.type.constructor.declarationDescriptor as ClassDescriptor
+        val ordinalPropertyGetter = context.ir.getPropertyGetterByName(enumClass, Name.identifier("ordinal"))
+        val getOrdinal = IrCallImpl(tempVariable.startOffset, tempVariable.endOffset, ordinalPropertyGetter).apply {
+            dispatchReceiver = IrGetValueImpl(tempVariable.startOffset, tempVariable.endOffset, tempVariable.symbol)
         }
-        return true
+        // Create temporary variable for subject's ordinal.
+        val ordinalDescriptor = IrTemporaryVariableDescriptorImpl(tempVariable.descriptor,
+                Name.identifier(tempVariable.name.asString() + "_ordinal"), context.builtIns.intType)
+        return IrVariableImpl(tempVariable.startOffset, tempVariable.endOffset,
+                IrDeclarationOrigin.IR_TEMPORARY_VARIABLE, ordinalDescriptor, getOrdinal)
     }
 }
 
