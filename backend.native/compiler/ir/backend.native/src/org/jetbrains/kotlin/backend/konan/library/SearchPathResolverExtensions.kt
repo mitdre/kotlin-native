@@ -65,16 +65,16 @@ fun SearchPathResolver.resolveLibrariesRecursive(immediateLibraries: List<Librar
     do {
         newDependencies = newDependencies.map { library: LibraryReaderImpl ->
             library.unresolvedDependencies
-                    .map { resolve(it).absoluteFile }
-                    .map { 
-                        if (it in cache) {
-                            library.resolvedDependencies.add(cache[it]!!)
+                    .map { it to resolve(it) }
+                    .map { (unresolved, resolved) ->
+                        val absoluteFile = resolved.libraryFile.absoluteFile
+                        if (absoluteFile in cache) {
+                            library.resolvedDependencies.add(cache[absoluteFile]!!)
                             null
                         } else {
-                            val reader = LibraryReaderImpl(it, abiVersion, target)
-                            cache.put(it,reader)
-                            library.resolvedDependencies.add(reader) 
-                            reader
+                            cache.put(absoluteFile ,resolved)
+                            library.resolvedDependencies.add(resolved)
+                            resolved
                         }
             }.filterNotNull()
         } .flatten()

@@ -23,12 +23,20 @@ import org.jetbrains.kotlin.backend.konan.serialization.deserializeModule
 import org.jetbrains.kotlin.konan.file.File
 import org.jetbrains.kotlin.konan.properties.*
 import org.jetbrains.kotlin.config.LanguageVersionSettings
+import org.jetbrains.kotlin.container.UnresolvedDependenciesException
 import org.jetbrains.kotlin.konan.target.KonanTarget
 import org.jetbrains.kotlin.konan.util.defaultTargetSubstitutions
 import org.jetbrains.kotlin.konan.util.substitute
 
-class LibraryReaderImpl(var libraryFile: File, override val currentAbiVersion: Int,
-    val target: KonanTarget? = null, override val isDefaultLibrary: Boolean = false)
+val UnresolvedLibrary.resolved get(): LibraryReaderImpl {
+    return LibraryReaderImpl(File(this.path), this.abiVersion, this.compilerVersion, this.target)
+}
+
+class LibraryReaderImpl(var libraryFile: File,
+                        override val currentAbiVersion: Int,
+                        override val compilerVersion: String,
+                        val target: KonanTarget? = null,
+                        override val isDefaultLibrary: Boolean = false)
     : KonanLibraryReader {
 
     // For the zipped libraries inPlace gives files from zip file system
@@ -79,8 +87,14 @@ class LibraryReaderImpl(var libraryFile: File, override val currentAbiVersion: I
     override val linkerOpts: List<String>
         get() = manifestProperties.propertyList("linkerOpts", target!!.visibleName)
 
-    override val unresolvedDependencies: List<String>
+    override val unresolvedDependencies: List<UnresolvedLibrary>
         get() = manifestProperties.propertyList("depends")
+                .map { UnresolvedLibrary(it,
+                        target,
+                        manifestProperties.propertyString("abi_version"),
+                        manifestProperties.propertyString("compiler_version"),
+                        manifestProperties.propertyString("library_version")
+                )}
 
     val resolvedDependencies = mutableListOf<LibraryReaderImpl>()
 

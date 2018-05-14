@@ -1,5 +1,7 @@
 package org.jetbrains.kotlin.konan.library
 
+import org.jetbrains.kotlin.backend.konan.library.KonanLibraryReader
+import org.jetbrains.kotlin.backend.konan.library.impl.UnresolvedLibrary
 import org.jetbrains.kotlin.konan.file.File
 import org.jetbrains.kotlin.konan.target.Distribution
 import org.jetbrains.kotlin.konan.target.KonanTarget
@@ -10,6 +12,7 @@ import org.jetbrains.kotlin.konan.util.suffixIfNot
 interface SearchPathResolver {
     val searchRoots: List<File>
     fun resolve(givenPath: String): File
+    fun resolve(unresolved: UnresolvedLibrary): KonanLibraryReader
     fun defaultLinks(nostdlib: Boolean, noDefaultLibs: Boolean): List<File>
 }
 

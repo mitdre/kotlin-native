@@ -18,7 +18,7 @@ package org.jetbrains.kotlin.backend.konan.library
 
 import llvm.LLVMModuleRef
 
-interface KonanLibraryWriter {
+interface KonanLibraryWriter: KonanLibraryVersioning {
     fun addLinkData(linkData: LinkData)
     fun addNativeBitcode(library: String)
     fun addIncludedBinary(library: String)
@@ -27,9 +27,6 @@ interface KonanLibraryWriter {
     fun addManifestAddend(path: String)
     fun addDataFlowGraph(dataFlowGraph: ByteArray)
     val mainBitcodeFileName: String
-    val currentAbiVersion: Int
-    val libraryVersion: String?
-    val compilerVersion: String
     fun commit()
 }
 

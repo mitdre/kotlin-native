@@ -68,7 +68,7 @@ class LibraryWriterImpl(override val libDir: File, moduleName: String,
         // TODO: <name>:<hash> will go somewhere around here.
         manifestProperties.setProperty("unique_name", "$moduleName")
         manifestProperties.setProperty("abi_version", "$currentAbiVersion")
-        manifestProperties.setProperty("library_version", "$libraryVersion")
+        libraryVersion ?. let { manifestProperties.setProperty("library_version", it) }
         manifestProperties.setProperty("compiler_version", "$compilerVersion")
     }
 
@@ -101,6 +101,11 @@ class LibraryWriterImpl(override val libDir: File, moduleName: String,
         } else {
             val newValue = libraries .map { it.uniqueName } . joinToString(" ")
             manifestProperties.setProperty("depends", newValue)
+            libraries.forEach { it ->
+                if (it.libraryVersion != null) {
+                    manifestProperties.setProperty("dependency_version_${it.uniqueName}", it.libraryVersion)
+                }
+            }
         }
     }
 
