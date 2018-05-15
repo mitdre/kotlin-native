@@ -1,7 +1,6 @@
 package org.jetbrains.kotlin.konan.library
 
-import org.jetbrains.kotlin.backend.konan.library.KonanLibraryReader
-import org.jetbrains.kotlin.backend.konan.library.impl.UnresolvedLibrary
+
 import org.jetbrains.kotlin.konan.file.File
 import org.jetbrains.kotlin.konan.target.Distribution
 import org.jetbrains.kotlin.konan.target.KonanTarget
@@ -12,7 +11,7 @@ import org.jetbrains.kotlin.konan.util.suffixIfNot
 interface SearchPathResolver {
     val searchRoots: List<File>
     fun resolve(givenPath: String): File
-    fun resolve(unresolved: UnresolvedLibrary): KonanLibraryReader
+    fun resolutionList(givenPath: String): List<File>
     fun defaultLinks(nostdlib: Boolean, noDefaultLibs: Boolean): List<File>
 }
 
@@ -70,6 +69,7 @@ class KonanLibrarySearchPathResolver(
     }
 
     override fun resolve(givenPath: String): File {
+        println("### resolving $givenPath")
         val given = File(givenPath)
         if (given.isAbsolute) {
             found(given)?.apply{ return this }
@@ -80,6 +80,20 @@ class KonanLibrarySearchPathResolver(
         }
         error("Could not find \"$givenPath\" in ${searchRoots.map{it.absolutePath}}.")
     }
+
+    override fun resolutionList(givenPath: String): List<File> {
+        val given = File(givenPath)
+        val list = if (given.isAbsolute) {
+            listOf(found(given))
+        } else {
+            // Do we need a Sequence here, to be a little more lazy?
+            searchRoots.map{
+                found(File(it, givenPath))
+            }
+        }.filterNotNull()
+        return list
+    }
+
 
     private val File.klib
         get() = File(this, "klib")

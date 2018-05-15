@@ -18,7 +18,9 @@ package org.jetbrains.kotlin.backend.konan.library
 
 import org.jetbrains.kotlin.backend.konan.library.impl.LibraryReaderImpl
 import org.jetbrains.kotlin.konan.file.File
+import org.jetbrains.kotlin.konan.library.KonanLibraryReader
 import org.jetbrains.kotlin.konan.library.SearchPathResolver
+import org.jetbrains.kotlin.konan.library.UnresolvedLibrary
 import org.jetbrains.kotlin.konan.target.KonanTarget
 
 fun SearchPathResolver.resolveImmediateLibraries(libraryNames: List<String>,
@@ -54,6 +56,32 @@ private fun warnOnLibraryDuplicates(resolvedLibraries: List<File>,
     duplicates.forEach {
         logger("library included more than once: ${it.first().absolutePath}")
     }
+}
+
+fun SearchPathResolver.resolve(unresolved: UnresolvedLibrary): LibraryReaderImpl {
+    val givenPath = unresolved.path
+    println("### resolving $givenPath")
+
+    val files = resolutionList(givenPath)
+    val matching = files.map { LibraryReaderImpl(it, unresolved.target) }
+            .map {
+                println("${it.compilerVersion}; ${it.abiVersion}; ${it.libraryVersion} ?= $unresolved")
+                it
+            }
+            .filter {
+                      val unresolvedTarget = unresolved.target
+                    unresolvedTarget == null ||
+                      it.targetList.contains(unresolvedTarget.visibleName)
+            }
+            .filter { it.compilerVersion == unresolved.compilerVersion }
+            .filter { it.abiVersion == unresolved.abiVersion }
+            .filter { it.libraryVersion == unresolved.libraryVersion ||
+                      it.libraryVersion == null ||
+                      unresolved.libraryVersion == null
+            }
+
+    if (matching.isEmpty()) error("Could not find \"$givenPath\" in ${searchRoots.map{it.absolutePath}}.")
+    return matching.first()
 }
 
 fun SearchPathResolver.resolveLibrariesRecursive(immediateLibraries: List<LibraryReaderImpl>,

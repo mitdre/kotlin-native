@@ -17,27 +17,32 @@
 package org.jetbrains.kotlin.backend.konan.library.impl
 
 import org.jetbrains.kotlin.backend.konan.KonanConfig
-import org.jetbrains.kotlin.backend.konan.library.KonanLibraryReader
+import org.jetbrains.kotlin.konan.library.KonanLibraryReader
 import org.jetbrains.kotlin.backend.konan.serialization.emptyPackages
 import org.jetbrains.kotlin.backend.konan.serialization.deserializeModule
 import org.jetbrains.kotlin.konan.file.File
 import org.jetbrains.kotlin.konan.properties.*
 import org.jetbrains.kotlin.config.LanguageVersionSettings
 import org.jetbrains.kotlin.container.UnresolvedDependenciesException
+import org.jetbrains.kotlin.konan.library.UnresolvedLibrary
 import org.jetbrains.kotlin.konan.target.KonanTarget
 import org.jetbrains.kotlin.konan.util.defaultTargetSubstitutions
 import org.jetbrains.kotlin.konan.util.substitute
 
 val UnresolvedLibrary.resolved get(): LibraryReaderImpl {
-    return LibraryReaderImpl(File(this.path), this.abiVersion, this.compilerVersion, this.target)
+    return LibraryReaderImpl(File(this.path), this.target)
 }
 
 class LibraryReaderImpl(var libraryFile: File,
-                        override val currentAbiVersion: Int,
-                        override val compilerVersion: String,
                         val target: KonanTarget? = null,
                         override val isDefaultLibrary: Boolean = false)
     : KonanLibraryReader {
+
+    @Deprecated("Use the primary constructor")
+    constructor(libraryFile: File,
+        currentAbiVersion: Int,
+        target: KonanTarget? = null,
+        isDefaultLibrary: Boolean = false) : this(libraryFile, target, isDefaultLibrary)
 
     // For the zipped libraries inPlace gives files from zip file system
     // whereas realFiles extracts them to /tmp.
@@ -54,12 +59,12 @@ class LibraryReaderImpl(var libraryFile: File,
         properties
     }
 
-    val abiVersion: String
+    override val abiVersion: Int
         get() {
             val manifestAbiVersion = manifestProperties.getProperty("abi_version")
-            if ("$currentAbiVersion" != manifestAbiVersion) 
-                error("ABI version mismatch. Compiler expects: $currentAbiVersion, the library is $manifestAbiVersion")
-            return manifestAbiVersion
+            //if ("$currentAbiVersion" != manifestAbiVersion)
+            //    error("ABI version mismatch. Compiler expects: $currentAbiVersion, the library is $manifestAbiVersion")
+            return manifestAbiVersion.toInt()
         }
 
     val targetList = inPlace.targetsDir.listFiles.map{it.name}
@@ -89,11 +94,14 @@ class LibraryReaderImpl(var libraryFile: File,
 
     override val unresolvedDependencies: List<UnresolvedLibrary>
         get() = manifestProperties.propertyList("depends")
-                .map { UnresolvedLibrary(it,
+                .map {
+
+                    println("### $it")
+                    UnresolvedLibrary(it,
                         target,
-                        manifestProperties.propertyString("abi_version"),
-                        manifestProperties.propertyString("compiler_version"),
-                        manifestProperties.propertyString("library_version")
+                        manifestProperties.propertyString("abi_version")!!.toInt(),
+                        manifestProperties.propertyString("compiler_version")!!,
+                        manifestProperties.propertyString("dependency_version_$it")
                 )}
 
     val resolvedDependencies = mutableListOf<LibraryReaderImpl>()
@@ -118,7 +126,7 @@ class LibraryReaderImpl(var libraryFile: File,
         return reader.loadSerializedPackageFragment(fqName)
     }
 
-    override fun moduleDescriptor(specifics: LanguageVersionSettings) 
+    fun moduleDescriptor(specifics: LanguageVersionSettings)
         = deserializeModule(specifics, this)
 
 }

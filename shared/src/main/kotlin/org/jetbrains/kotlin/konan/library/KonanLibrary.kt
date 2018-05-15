@@ -50,12 +50,6 @@ interface KonanLibraryLayout {
         = File(linkdataDir, if (packageName == "") "root_package.knm" else "package_$packageName.knm")
 }
 
-interface KonanLibraryVersioning {
-    val libraryVersion: String?
-    val compilerVersion: String
-    val currentAbiVersion: Int
-}
-
 interface KonanLibrary: KonanLibraryLayout {
     val libraryName: String
 }

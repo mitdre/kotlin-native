@@ -17,6 +17,8 @@
 package org.jetbrains.kotlin.backend.konan.library
 
 import llvm.LLVMModuleRef
+import org.jetbrains.kotlin.konan.library.KonanLibraryReader
+import org.jetbrains.kotlin.konan.library.KonanLibraryVersioning
 
 interface KonanLibraryWriter: KonanLibraryVersioning {
     fun addLinkData(linkData: LinkData)

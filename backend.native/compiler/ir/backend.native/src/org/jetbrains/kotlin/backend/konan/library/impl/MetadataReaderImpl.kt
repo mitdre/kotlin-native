@@ -17,7 +17,7 @@
 package org.jetbrains.kotlin.backend.konan.library.impl
 
 import org.jetbrains.kotlin.backend.konan.library.KonanLibrary
-import org.jetbrains.kotlin.backend.konan.library.MetadataReader
+import org.jetbrains.kotlin.konan.library.MetadataReader
 
 class MetadataReaderImpl(library: KonanLibrary) : MetadataReader, KonanLibrary by library {
 

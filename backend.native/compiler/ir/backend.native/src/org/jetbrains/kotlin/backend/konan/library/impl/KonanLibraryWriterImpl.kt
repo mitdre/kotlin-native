@@ -16,7 +16,6 @@
 
 package org.jetbrains.kotlin.backend.konan.library.impl
 
-import org.jetbrains.kotlin.backend.konan.library.KonanLibraryReader
 import llvm.LLVMModuleRef
 import llvm.LLVMWriteBitcodeToFile
 import org.jetbrains.kotlin.backend.konan.library.KonanLibrary
@@ -24,6 +23,7 @@ import org.jetbrains.kotlin.backend.konan.library.KonanLibraryWriter
 import org.jetbrains.kotlin.backend.konan.library.LinkData
 import org.jetbrains.kotlin.konan.KonanVersion
 import org.jetbrains.kotlin.konan.file.*
+import org.jetbrains.kotlin.konan.library.KonanLibraryReader
 import org.jetbrains.kotlin.konan.properties.*
 import org.jetbrains.kotlin.konan.target.KonanTarget
 
@@ -32,7 +32,7 @@ abstract class FileBasedLibraryWriter (
 }
 
 class LibraryWriterImpl(override val libDir: File, moduleName: String,
-    override val currentAbiVersion: Int,
+    override val abiVersion: Int,
     override val compilerVersion: String,
     override val libraryVersion: String? = null,
     override val target: KonanTarget?,
@@ -67,7 +67,7 @@ class LibraryWriterImpl(override val libDir: File, moduleName: String,
         resourcesDir.mkdirs()
         // TODO: <name>:<hash> will go somewhere around here.
         manifestProperties.setProperty("unique_name", "$moduleName")
-        manifestProperties.setProperty("abi_version", "$currentAbiVersion")
+        manifestProperties.setProperty("abi_version", "$abiVersion")
         libraryVersion ?. let { manifestProperties.setProperty("library_version", it) }
         manifestProperties.setProperty("compiler_version", "$compilerVersion")
     }
