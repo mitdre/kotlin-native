@@ -27,8 +27,7 @@ fun SearchPathResolver.resolveImmediateLibraries(libraryNames: List<String>,
                                                  target: KonanTarget,
                                                  abiVersion: Int = 1,
                                                  noStdLib: Boolean = false,
-                                                 noDefaultLibs: Boolean = false,
-                                                 logger: ((String) -> Unit)?): List<LibraryReaderImpl> {
+                                                 noDefaultLibs: Boolean = false): List<LibraryReaderImpl> {
     val userProvidedLibraries = libraryNames
             .map { resolve(it) }
             .map{ LibraryReaderImpl(it, abiVersion, target) }
@@ -41,15 +40,12 @@ fun SearchPathResolver.resolveImmediateLibraries(libraryNames: List<String>,
     // they have precedence over defaults when duplicates are eliminated.
     val resolvedLibraries = userProvidedLibraries + defaultLibraries
 
-    warnOnLibraryDuplicates(resolvedLibraries.map { it.libraryFile }, logger)
+    warnOnLibraryDuplicates(resolvedLibraries.map { it.libraryFile })
 
     return resolvedLibraries.distinctBy { it.libraryFile.absolutePath }
 }
 
-private fun warnOnLibraryDuplicates(resolvedLibraries: List<File>, 
-    logger: ((String) -> Unit)? ) {
-
-    if (logger == null) return
+private fun SearchPathResolver.warnOnLibraryDuplicates(resolvedLibraries: List<File>) {
 
     val duplicates = resolvedLibraries.groupBy { it.absolutePath } .values.filter { it.size > 1 }
 
@@ -58,27 +54,42 @@ private fun warnOnLibraryDuplicates(resolvedLibraries: List<File>,
     }
 }
 
+fun SearchPathResolver.libraryMatch(candidate: LibraryReaderImpl, unresolved: UnresolvedLibrary): Boolean {
+    val unresolvedTarget = unresolved.target
+    val candidatePath = candidate.libraryFile.absolutePath
+
+    if (unresolvedTarget != null && !candidate.targetList.contains(unresolvedTarget!!.visibleName)) {
+        logger("skipping $candidatePath as it doesn't support the needed hardware target. Expected `$unresolvedTarget`, found ${candidate.targetList}")
+        return false
+    }
+
+    if (candidate.compilerVersion != unresolved.compilerVersion) {
+        logger("skipping $candidatePath. The compiler versions don't match. Expected '${unresolved.compilerVersion}', found '${candidate.compilerVersion}'")
+        return false
+    }
+
+    if (candidate.abiVersion != unresolved.abiVersion) {
+        logger("skipping $candidatePath. The abi versions don't match. Expected `${unresolved.abiVersion}`, found ${candidate.abiVersion}")
+        return false
+    }
+
+    if (candidate.libraryVersion != unresolved.libraryVersion &&
+        candidate.libraryVersion != null &&
+        unresolved.libraryVersion != null) {
+
+        logger("skipping $candidatePath. The library versions don't match. Expected `${unresolved.libraryVersion}`, found ${candidate.libraryVersion}")
+        return false
+    }
+
+    return true
+}
+
 fun SearchPathResolver.resolve(unresolved: UnresolvedLibrary): LibraryReaderImpl {
     val givenPath = unresolved.path
-    println("### resolving $givenPath")
-
     val files = resolutionList(givenPath)
     val matching = files.map { LibraryReaderImpl(it, unresolved.target) }
-            .map {
-                println("${it.compilerVersion}; ${it.abiVersion}; ${it.libraryVersion} ?= $unresolved")
-                it
-            }
-            .filter {
-                      val unresolvedTarget = unresolved.target
-                    unresolvedTarget == null ||
-                      it.targetList.contains(unresolvedTarget.visibleName)
-            }
-            .filter { it.compilerVersion == unresolved.compilerVersion }
-            .filter { it.abiVersion == unresolved.abiVersion }
-            .filter { it.libraryVersion == unresolved.libraryVersion ||
-                      it.libraryVersion == null ||
-                      unresolved.libraryVersion == null
-            }
+            .map { it.takeIf {libraryMatch(it, unresolved)} }
+            .filterNotNull()
 
     if (matching.isEmpty()) error("Could not find \"$givenPath\" in ${searchRoots.map{it.absolutePath}}.")
     return matching.first()
@@ -132,8 +143,7 @@ fun SearchPathResolver.resolveLibrariesRecursive(libraryNames: List<String>,
                     target = target,
                     abiVersion = abiVersion,
                     noStdLib = noStdLib,
-                    noDefaultLibs = noDefaultLibs,
-                    logger = null
+                    noDefaultLibs = noDefaultLibs
             )
     resolveLibrariesRecursive(immediateLibraries, target, abiVersion)
     return immediateLibraries.withResolvedDependencies()

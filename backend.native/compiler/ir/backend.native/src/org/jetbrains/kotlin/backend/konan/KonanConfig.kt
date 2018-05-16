@@ -88,14 +88,14 @@ class KonanConfig(val project: Project, val configuration: CompilerConfiguration
         get() = configuration.getList(KonanConfigKeys.LIBRARY_FILES)
 
     private val repositories = configuration.getList(KonanConfigKeys.REPOSITORIES)
-    private val resolver = defaultResolver(repositories, target, distribution)
+    private val resolver =
+            defaultResolver(repositories, target, distribution, { msg -> configuration.report(STRONG_WARNING, msg) })
 
     internal val immediateLibraries: List<LibraryReaderImpl> by lazy {
         val result = resolver.resolveImmediateLibraries(libraryNames, target,
                 currentAbiVersion,
                 configuration.getBoolean(KonanConfigKeys.NOSTDLIB),
-                configuration.getBoolean(KonanConfigKeys.NODEFAULTLIBS),
-                { msg -> configuration.report(STRONG_WARNING, msg) })
+                configuration.getBoolean(KonanConfigKeys.NODEFAULTLIBS))
         resolver.resolveLibrariesRecursive(result, target, currentAbiVersion)
         result
     }

@@ -95,8 +95,6 @@ class LibraryReaderImpl(var libraryFile: File,
     override val unresolvedDependencies: List<UnresolvedLibrary>
         get() = manifestProperties.propertyList("depends")
                 .map {
-
-                    println("### $it")
                     UnresolvedLibrary(it,
                         target,
                         manifestProperties.propertyString("abi_version")!!.toInt(),

@@ -13,17 +13,22 @@ interface SearchPathResolver {
     fun resolve(givenPath: String): File
     fun resolutionList(givenPath: String): List<File>
     fun defaultLinks(nostdlib: Boolean, noDefaultLibs: Boolean): List<File>
+    val logger: ((String) -> Unit)
 }
 
-fun defaultResolver(repositories: List<String>, target: KonanTarget): SearchPathResolver =
-        defaultResolver(repositories, target, Distribution())
+fun dummyLogger(msg: String) {}
 
-fun defaultResolver(repositories: List<String>, target: KonanTarget, distribution: Distribution): SearchPathResolver =
+fun defaultResolver(repositories: List<String>, target: KonanTarget, logger: (String) -> Unit = ::dummyLogger): SearchPathResolver =
+        defaultResolver(repositories, target, Distribution(), logger)
+
+fun defaultResolver(repositories: List<String>, target: KonanTarget, distribution: Distribution, logger: (String) -> Unit = ::dummyLogger): SearchPathResolver =
         KonanLibrarySearchPathResolver(
                 repositories,
                 target,
                 distribution.klib,
-                distribution.localKonanDir.absolutePath
+                distribution.localKonanDir.absolutePath,
+                false,
+                logger
         )
 
 class KonanLibrarySearchPathResolver(
@@ -31,7 +36,8 @@ class KonanLibrarySearchPathResolver(
         val target: KonanTarget?,
         val distributionKlib: String?,
         val localKonanDir: String?,
-        val skipCurrentDir: Boolean = false
+        val skipCurrentDir: Boolean = false,
+        override val logger: ((String) -> Unit) = ::dummyLogger
 ): SearchPathResolver {
 
     val localHead: File?
@@ -69,7 +75,6 @@ class KonanLibrarySearchPathResolver(
     }
 
     override fun resolve(givenPath: String): File {
-        println("### resolving $givenPath")
         val given = File(givenPath)
         if (given.isAbsolute) {
             found(given)?.apply{ return this }
