@@ -61,6 +61,7 @@ extern "C" void getNativeActivityState(NativeActivityState* state) {
   state->savedState = launcherState->nativeActivityState.savedState;
   state->savedStateSize = launcherState->nativeActivityState.savedStateSize;
   state->looper = launcherState->nativeActivityState.looper;
+  state->vm = launcherState->nativeActivityState.vm;
 }
 
 extern "C" void notifySysEventProcessed() {
@@ -213,8 +214,10 @@ extern "C" void RUNTIME_USED Konan_main(
   bool launchThread = activity->instance == nullptr;
   if (launchThread) {
     launcherState = (LauncherState*)calloc(sizeof(LauncherState), 1);
-    launcherState->nativeActivityState = {activity, savedState, savedStateSize, nullptr};
+    launcherState->nativeActivityState = {activity, savedState, savedStateSize, nullptr, nullptr};
 
+    activity->env->GetJavaVM(&(launcherState->nativeActivityState.vm));
+    LOGI("setting VM in native activity to %p", launcherState->nativeActivityState.vm);
     activity->instance = launcherState;
     activity->callbacks->onDestroy = onDestroy;
     activity->callbacks->onStart = onStart;
@@ -231,6 +234,7 @@ extern "C" void RUNTIME_USED Konan_main(
     activity->callbacks->onInputQueueDestroyed = onInputQueueDestroyed;
   } else {
     launcherState = (LauncherState*)activity->instance;
+    LOGI("reusing native activity state: %p", launcherState->nativeActivityState.vm);
   }
 
   runKonan_start(launchThread);

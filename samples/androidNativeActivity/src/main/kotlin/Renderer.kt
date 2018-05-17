@@ -286,9 +286,9 @@ class Renderer(val container: DisposableContainer,
             glTexCoordPointer(2, GL_FLOAT, 0, texCoords.toFloatArray().toCValues().ptr)
             glNormalPointer(GL_FLOAT, 0, normals.toFloatArray().toCValues().ptr)
             glDrawElements(GL_TRIANGLES, triangles.size, GL_UNSIGNED_BYTE, triangles.toByteArray().toCValues().ptr)
-
-            glPopMatrix()
         }
+
+        glPopMatrix()
 
         if (eglSwapBuffers(display, surface) == 0) {
             val error = eglGetError()
@@ -304,11 +304,15 @@ class Renderer(val container: DisposableContainer,
         }
     }
 
+    fun stop() {
+        logInfo("Stopping renderer..")
+        eglMakeCurrent(display, null, null, null)
+    }
+
     fun destroy() {
         if (!initialized) return
 
-        logInfo("Destroying context..")
-
+        logInfo("Destroying renderer..")
         eglMakeCurrent(display, null, null, null)
 
         context?.let { eglDestroyContext(display, it) }

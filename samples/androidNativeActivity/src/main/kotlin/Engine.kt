@@ -89,10 +89,19 @@ class Engine(val state: NativeActivityState): DisposableContainer() {
         super.dispose()
     }
 
-
     private fun callToManagedAPI() {
-        val env = state.activity!!.pointed.env
-        println("jni = $env")
+        val vm = state.vm!!
+        val vmFunctions = vm.pointed.pointed!!
+        val envStorage = arena.alloc<CPointerVar<JNIEnvVar>>()
+        if (vmFunctions.AttachCurrentThreadAsDaemon!!(vm, envStorage.ptr, null) != 0)
+            throw Error("Cannot attach thread to VM")
+        val env = envStorage.pointed!!
+        val functions = env.pointed!!
+        memScoped {
+            val string = functions.FindClass!!(env.ptr, "java/lang/String".cstr.ptr)
+            val int = functions.FindClass!!(env.ptr, "java/lang/Integer".cstr.ptr)
+            println("jni=$env string=$string int=$int")
+        }
     }
 
     private fun processSysEvent(fd: IntVar): Boolean {
@@ -108,6 +117,10 @@ class Engine(val state: NativeActivityState): DisposableContainer() {
                 NativeActivityEventKind.START -> {
                     logInfo("Activity started")
                     callToManagedAPI()
+                }
+
+                NativeActivityEventKind.STOP -> {
+                    renderer.stop()
                 }
 
                 NativeActivityEventKind.DESTROY -> {
