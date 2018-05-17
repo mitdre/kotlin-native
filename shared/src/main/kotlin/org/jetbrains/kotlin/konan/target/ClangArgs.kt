@@ -211,7 +211,6 @@ class ClangArgs(private val configurables: Configurables) : Configurables by con
                         args.removeAt(indexToRemove - 1)
                         args.removeAt(indexToRemove - 1)
                     }
-                    //args.remove(args.find { it.startsWith("--systemroot=") })
                 }
             }
         }
