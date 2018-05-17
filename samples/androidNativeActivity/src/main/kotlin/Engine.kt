@@ -89,6 +89,12 @@ class Engine(val state: NativeActivityState): DisposableContainer() {
         super.dispose()
     }
 
+
+    private fun callToManagedAPI() {
+        val env = state.activity!!.pointed.env
+        println("jni = $env")
+    }
+
     private fun processSysEvent(fd: IntVar): Boolean {
         val readBytes = read(fd.value, eventPointer.ptr, pointerSize.narrow()).toLong()
         if (readBytes != pointerSize.toLong()) {
@@ -99,7 +105,10 @@ class Engine(val state: NativeActivityState): DisposableContainer() {
             val event = eventPointer.value.dereferenceAs<NativeActivityEvent>()
             println("got ${event.eventKind}")
             when (event.eventKind) {
-                NativeActivityEventKind.START -> logInfo("Activity started")
+                NativeActivityEventKind.START -> {
+                    logInfo("Activity started")
+                    callToManagedAPI()
+                }
 
                 NativeActivityEventKind.DESTROY -> {
                     rendererState?.let {
