@@ -304,6 +304,15 @@ class Renderer(val container: DisposableContainer,
         }
     }
 
+    fun start() {
+        logInfo("Starting renderer..")
+        if (initialized) {
+            if (eglMakeCurrent(display, surface, surface, context) == 0) {
+                throw Error("eglMakeCurrent() returned error ${eglGetError()}")
+            }
+        }
+    }
+
     fun stop() {
         logInfo("Stopping renderer..")
         eglMakeCurrent(display, null, null, null)

@@ -56,6 +56,8 @@ class Engine(val state: NativeActivityState): DisposableContainer() {
     private val inputEvent = arena.alloc<CPointerVar<AInputEvent>>()
 
     fun mainLoop() {
+        callToManagedAPI()
+
         val fd = arena.alloc<IntVar>()
         while (true) {
             // Process events.
@@ -89,18 +91,20 @@ class Engine(val state: NativeActivityState): DisposableContainer() {
         super.dispose()
     }
 
+    private val jniBrigde = JniBridge(state.activity!!.pointed.vm!!)
+
     private fun callToManagedAPI() {
-        val vm = state.vm!!
-        val vmFunctions = vm.pointed.pointed!!
-        val envStorage = arena.alloc<CPointerVar<JNIEnvVar>>()
-        if (vmFunctions.AttachCurrentThreadAsDaemon!!(vm, envStorage.ptr, null) != 0)
-            throw Error("Cannot attach thread to VM")
-        val env = envStorage.pointed!!
-        val functions = env.pointed!!
-        memScoped {
-            val string = functions.FindClass!!(env.ptr, "java/lang/String".cstr.ptr)
-            val int = functions.FindClass!!(env.ptr, "java/lang/Integer".cstr.ptr)
-            println("jni=$env string=$string int=$int")
+        // Actually, this is a context pointer.
+        val context = JniObject(state.activity!!.pointed.clazz!!)
+
+        val contextClass = jniBrigde.FindClass("android/content/Context")
+        val getSystemServiceMethod = jniBrigde.GetMethodID(
+                contextClass, "getSystemService", "(Ljava/lang/String;)Ljava/lang/Object;")
+        val vibrator = jniBrigde.CallObjectMethod(context, getSystemServiceMethod, "vibrator")
+        if (vibrator.isNotNull) {
+            val vibratorClass = jniBrigde.FindClass("android/os/Vibrator")
+            val vibrateMethod = jniBrigde.GetMethodID(vibratorClass, "vibrate", "(J)V")
+            jniBrigde.CallVoidMethod(vibrator, vibrateMethod, 500L)
         }
     }
 
@@ -116,7 +120,7 @@ class Engine(val state: NativeActivityState): DisposableContainer() {
             when (event.eventKind) {
                 NativeActivityEventKind.START -> {
                     logInfo("Activity started")
-                    callToManagedAPI()
+                    renderer.start()
                 }
 
                 NativeActivityEventKind.STOP -> {

@@ -26,11 +26,9 @@ fun main(args: Array<String>) {
         val engine = Engine(state)
         try {
             engine.mainLoop()
-        } catch (e: Throwable) {
-            println("Error executing main: $e")
-            throw e
         } finally {
             engine.dispose()
         }
     }
+    kotlin.system.exitProcess(0)
 }

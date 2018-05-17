@@ -32,7 +32,6 @@ struct NativeActivityState {
   void* savedState;
   size_t savedStateSize;
   struct ALooper* looper;
-  JavaVM* vm;
 };
 
 void getNativeActivityState(struct NativeActivityState* state);
