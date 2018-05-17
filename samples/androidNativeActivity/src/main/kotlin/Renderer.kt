@@ -179,14 +179,14 @@ class Renderer(val container: DisposableContainer,
 
     fun getState() = matrix to 16 * 4
 
-    fun rotateBy(vec: Vector2) {
+    fun rotateBy(vector: Vector2) {
         if (!initialized) return
 
-        val len = vec.length
-        if (len < 1e-9f) return
-        val angle = 180 * len / screen.length
-        val x = -vec.y / len
-        val y = -vec.x / len
+        val length = vector.length
+        if (length < 1e-9f) return
+        val angle = 180 * length / screen.length
+        val x = -vector.y / length
+        val y = -vector.x / length
 
         glPushMatrix()
         glMatrixMode(GL_MODELVIEW)
@@ -206,11 +206,11 @@ class Renderer(val container: DisposableContainer,
         }
         try {
             val length = AAsset_getLength(asset)
-            val buf = allocArray<ByteVar>(length)
-            if (AAsset_read(asset, buf, length) != length.toInt()) {
+            val buffer = allocArray<ByteVar>(length)
+            if (AAsset_read(asset, buffer, length) != length.toInt()) {
                 throw Error("Error reading asset")
             }
-            with(BMPHeader(buf.rawValue)) {
+            with(BMPHeader(buffer.rawValue)) {
                 if (magic != 0x4d42 || zero != 0 || size != length.toInt() || bits != 24) {
                     throw Error("Error parsing texture file")
                 }
@@ -254,20 +254,20 @@ class Renderer(val container: DisposableContainer,
         glEnableClientState(GL_NORMAL_ARRAY)
         glEnableClientState(GL_TEXTURE_COORD_ARRAY)
 
-        val poly = RegularPolyhedra.Dodecahedron
+        val polygon = RegularPolyhedra.Dodecahedron
         val vertices = mutableListOf<Float>()
         val texCoords = mutableListOf<Float>()
         val triangles = mutableListOf<Byte>()
         val normals = mutableListOf<Float>()
-        for (face in poly.faces) {
-            val u = poly.vertices[face[2].toInt()] - poly.vertices[face[1].toInt()]
-            val v = poly.vertices[face[0].toInt()] - poly.vertices[face[1].toInt()]
+        for (face in polygon.faces) {
+            val u = polygon.vertices[face[2].toInt()] - polygon.vertices[face[1].toInt()]
+            val v = polygon.vertices[face[0].toInt()] - polygon.vertices[face[1].toInt()]
             val normal = u.crossProduct(v).normalized()
 
             val copiedFace = ByteArray(face.size)
             for (j in face.indices) {
                 copiedFace[j] = (vertices.size / 4).toByte()
-                poly.vertices[face[j].toInt()].copyCoordinatesTo(vertices)
+                polygon.vertices[face[j].toInt()].copyCoordinatesTo(vertices)
                 vertices.add(scale)
                 normal.copyCoordinatesTo(normals)
                 texturePoints[j].copyCoordinatesTo(texCoords)
@@ -295,7 +295,6 @@ class Renderer(val container: DisposableContainer,
             if (error != EGL_BAD_SURFACE)
                 throw Error("eglSwapBuffers() returned error $error")
             else {
-                // TODO: reinit surface.
                 if (eglMakeCurrent(display, surface, surface, context) == 0) {
                     throw Error("Reinit eglMakeCurrent() returned error ${eglGetError()}")
                 }
