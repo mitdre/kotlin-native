@@ -27,11 +27,14 @@ import org.gradle.api.attributes.Usage
 import org.gradle.api.internal.tasks.DefaultTaskDependency
 import org.gradle.api.tasks.*
 import org.gradle.language.cpp.CppBinary
-import org.gradle.language.cpp.internal.NativeVariant
+import org.gradle.language.cpp.internal.DefaultUsageContext
+import org.gradle.language.cpp.internal.NativeVariantIdentity
 import org.gradle.language.nativeplatform.internal.Names
 import org.gradle.nativeplatform.Linkage
+import org.gradle.nativeplatform.OperatingSystemFamily
 import org.gradle.util.ConfigureUtil
 import org.jetbrains.kotlin.gradle.plugin.*
+import org.jetbrains.kotlin.konan.target.Family
 import org.jetbrains.kotlin.konan.target.HostManager
 import org.jetbrains.kotlin.konan.target.KonanTarget
 import java.io.File
@@ -113,7 +116,17 @@ abstract class KonanArtifactTask: KonanTargetableTask(), KonanArtifactSpec {
             val objectFactory = project.objects
             val linkUsage = objectFactory.named(Usage::class.java, Usage.NATIVE_LINK)
             val konanSoftwareComponent = config.mainVariant
-            konanSoftwareComponent.addVariant(NativeVariant(Names.of("${artifact.name.removeSuffix("$artifactSuffix")}_${target.name}"), linkUsage, null, linkUsage, platformConfiguration))
+            val variantName = "${artifact.name.removeSuffix("$artifactSuffix")}_${target.name}"
+            konanSoftwareComponent.addVariant(NativeVariantIdentity(
+                    variantName,
+                    project.provider{artifactName},
+                    project.provider{project.group.toString()},
+                    project.provider{ project.version.toString() },
+                    false,
+                    false,
+                    target.asOperatingSystemFamily(),
+                    DefaultUsageContext("${variantName}Link", linkUsage, platformConfiguration.attributes),
+                    null))
         }
     }
 
@@ -130,6 +143,20 @@ abstract class KonanArtifactTask: KonanTargetableTask(), KonanArtifactSpec {
     fun destinationDir(dir: Any) {
         destinationDir = project.file(dir)
     }
+
+    private fun KonanTarget.asOperatingSystemFamily(): OperatingSystemFamily {
+        val name = when(this.family) {
+            Family.LINUX -> OperatingSystemFamily.LINUX
+            Family.OSX -> OperatingSystemFamily.MAC_OS
+            Family.MINGW -> OperatingSystemFamily.WINDOWS
+            Family.ANDROID -> "ANDROID"
+            Family.WASM -> "WASM"
+            Family.ZEPHYR -> "ZEPHYR"
+            Family.IOS -> "IOS"
+        }
+        return project.objects.named(OperatingSystemFamily::class.java, name)
+    }
+
 }
 
 /** Task building an artifact with libraries */

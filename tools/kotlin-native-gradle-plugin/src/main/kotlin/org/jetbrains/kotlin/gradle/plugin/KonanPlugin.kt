@@ -29,6 +29,7 @@ import org.gradle.api.publish.PublishingExtension
 import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.api.publish.maven.internal.publication.MavenPublicationInternal
 import org.gradle.tooling.provider.model.ToolingModelBuilderRegistry
+import org.gradle.util.GradleVersion
 import org.jetbrains.kotlin.gradle.plugin.KonanPlugin.Companion.COMPILE_ALL_TASK_NAME
 import org.jetbrains.kotlin.gradle.plugin.model.KonanToolingModelBuilder
 import org.jetbrains.kotlin.gradle.plugin.tasks.*
